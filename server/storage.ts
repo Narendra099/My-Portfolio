@@ -1,7 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const dataDir = path.join(process.cwd(), ".data");
+const dataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(process.cwd(), ".data");
 
 async function ensureDataDir() {
   await mkdir(dataDir, { recursive: true });

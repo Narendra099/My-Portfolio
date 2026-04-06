@@ -1,5 +1,8 @@
 import cors from "cors";
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import { google } from "googleapis";
 import { config } from "./config.js";
@@ -8,6 +11,9 @@ import { createOAuthClient, loadOAuthClient, readStoredTokens, saveTokens } from
 
 const githubUsername = "Narendra099";
 const accentCycle = ["Mono", "Graph", "Build", "Ship", "Code", "Stack"];
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+const distDir = path.resolve(serverDir, "../dist");
+const distIndex = path.join(distDir, "index.html");
 
 function repoStatus(pushedAt: string) {
   const diffDays = Math.floor((Date.now() - new Date(pushedAt).getTime()) / (1000 * 60 * 60 * 24));
@@ -238,6 +244,14 @@ app.get("/api/projects", async (_req, res) => {
     });
   }
 });
+
+if (existsSync(distIndex)) {
+  app.use(express.static(distDir));
+
+  app.get(/^(?!\/(?:api|auth)(?:\/|$)).*/, (_req, res) => {
+    res.sendFile(distIndex);
+  });
+}
 
 app.listen(config.port, () => {
   console.log(`Calendar sync server listening on http://localhost:${config.port}`);
