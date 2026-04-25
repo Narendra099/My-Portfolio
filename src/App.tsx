@@ -4,16 +4,31 @@ import { useElementWidth } from "./useElementWidth";
 import { usePretextMetrics } from "./usePretextMetrics";
 import { useAvailability } from "./useAvailability";
 import { useProjects } from "./useProjects";
+import { useWorkspace } from "./useWorkspace";
 
-type PageId = "home" | "about" | "projects" | "schedule" | "contact";
+type PageId = "home" | "about" | "projects" | "workspace" | "schedule" | "contact";
 
 const navItems: Array<{ id: PageId; label: string }> = [
   { id: "home", label: "Home" },
   { id: "about", label: "About" },
   { id: "projects", label: "Projects" },
+  { id: "workspace", label: "Workspace" },
   { id: "schedule", label: "Schedule" },
   { id: "contact", label: "Contact" },
 ];
+
+function formatRelativeTime(isoDate: string): string {
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 30) return "just now";
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  return `${diffDays}d ago`;
+}
 
 function getPageFromHash(): PageId {
   const hash = window.location.hash.replace("#", "").trim();
@@ -75,6 +90,8 @@ function renderPage(page: PageId) {
       return <AboutPage />;
     case "projects":
       return <ProjectsPage />;
+    case "workspace":
+      return <WorkspacePage />;
     case "schedule":
       return <SchedulePage />;
     case "contact":
@@ -214,6 +231,153 @@ function ProjectsPage() {
           )}
           {error && <p className="schedule-meta schedule-error">{error}</p>}
         </div>
+      </section>
+    </section>
+  );
+}
+
+function WorkspacePage() {
+  const { data, loading, error, refreshedAt, refresh } = useWorkspace();
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t: number) => t + 1), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const latestCommit = data?.commits[0];
+  const recentCommits = data?.commits.slice(1) ?? [];
+
+  return (
+    <section className="page-view">
+      <section className="panel page-panel">
+        <div className="section-heading">
+          <p className="eyebrow">Workspace</p>
+          <h2>What I&apos;m actively building right now.</h2>
+        </div>
+
+        {loading && !data && (
+          <p className="schedule-meta" style={{ marginTop: 22 }}>
+            Loading workspace…
+          </p>
+        )}
+        {error && !data && (
+          <p className="schedule-meta schedule-error" style={{ marginTop: 22 }}>
+            {error}
+          </p>
+        )}
+
+        {data && (
+          <div className="workspace-layout">
+            <div className="workspace-repo-header">
+              <div className="workspace-repo-meta">
+                <span className="workspace-live-dot" aria-hidden="true" />
+                <span className="workspace-lang">
+                  {data.repo.language ?? "Project"}
+                </span>
+                <span className="workspace-pushed">
+                  Pushed {formatRelativeTime(data.repo.pushed_at)}
+                </span>
+              </div>
+              <h3 className="workspace-repo-name">
+                {data.repo.name.replace(/-/g, " ")}
+              </h3>
+              {data.repo.description && (
+                <p className="workspace-repo-desc">{data.repo.description}</p>
+              )}
+              {data.repo.topics.length > 0 && (
+                <div className="tag-cloud workspace-tags">
+                  {data.repo.topics.map((t) => (
+                    <span key={t}>{t.replace(/-/g, " ")}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {latestCommit && (
+              <div className="workspace-focus">
+                <p className="eyebrow">Current Focus</p>
+                <div className="workspace-commit-main">
+                  <div className="workspace-commit-top">
+                    <code className="workspace-sha">{latestCommit.sha}</code>
+                    <span className="workspace-commit-time">
+                      {formatRelativeTime(latestCommit.date)}
+                    </span>
+                  </div>
+                  <p className="workspace-commit-msg">{latestCommit.message}</p>
+                  <div className="workspace-commit-author">
+                    <span>{latestCommit.author}</span>
+                    <span className="workspace-dot-sep">·</span>
+                    <a
+                      href={latestCommit.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="workspace-commit-link"
+                    >
+                      View on GitHub ↗
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {recentCommits.length > 0 && (
+              <div className="workspace-commits">
+                <p className="eyebrow">Recent Activity</p>
+                <div className="commit-log">
+                  {recentCommits.map((commit) => (
+                    <a
+                      key={commit.sha}
+                      href={commit.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="commit-log-item"
+                    >
+                      <code className="workspace-sha commit-log-sha">
+                        {commit.sha}
+                      </code>
+                      <span className="commit-log-msg">
+                        {commit.message.split("\n")[0]}
+                      </span>
+                      <span className="commit-log-time">
+                        {formatRelativeTime(commit.date)}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="workspace-footer">
+              <a
+                href={data.repo.html_url}
+                target="_blank"
+                rel="noreferrer"
+                className="button button-ghost"
+              >
+                View Repository
+              </a>
+              <div className="workspace-refresh-row">
+                <span className="workspace-live-dot" aria-hidden="true" />
+                <span className="workspace-refresh-label">
+                  Live · refreshed{" "}
+                  {refreshedAt
+                    ? formatRelativeTime(refreshedAt.toISOString())
+                    : "just now"}
+                  {/* tick keeps the label in sync every 15s without a re-fetch */}
+                  {tick >= 0 ? "" : ""}
+                </span>
+                <button
+                  type="button"
+                  className="workspace-refresh-btn"
+                  onClick={() => void refresh()}
+                >
+                  Refresh now
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </section>
   );

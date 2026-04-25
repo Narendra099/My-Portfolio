@@ -11,6 +11,42 @@ import { createOAuthClient, loadOAuthClient, readStoredTokens, saveTokens } from
 
 const githubUsername = "Narendra099";
 const accentCycle = ["Mono", "Graph", "Build", "Ship", "Code", "Stack"];
+
+function buildGithubHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "narendra-portfolio",
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+  return headers;
+}
+
+type WorkspaceCommit = {
+  sha: string;
+  message: string;
+  author: string;
+  date: string;
+  url: string;
+};
+
+type WorkspacePayload = {
+  repo: {
+    name: string;
+    description: string | null;
+    html_url: string;
+    language: string | null;
+    topics: string[];
+    pushed_at: string;
+    default_branch: string;
+  };
+  commits: WorkspaceCommit[];
+  lastRefreshed: string;
+};
+
+let workspaceCache: { data: WorkspacePayload; expiresAt: number } | null = null;
+const WORKSPACE_CACHE_TTL = 30_000;
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(serverDir, "../dist");
 const distIndex = path.join(distDir, "index.html");
@@ -52,12 +88,7 @@ function normalizeStack(repo: {
 async function fetchLatestCommitDate(repoName: string, defaultBranch: string) {
   const response = await fetch(
     `https://api.github.com/repos/${githubUsername}/${repoName}/commits?sha=${encodeURIComponent(defaultBranch)}&per_page=1`,
-    {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "narendra-portfolio",
-      },
-    },
+    { headers: buildGithubHeaders() },
   );
 
   if (!response.ok) {
@@ -122,10 +153,23 @@ app.get("/auth/google/callback", async (req, res) => {
     return;
   }
 
-  const oauthClient = createOAuthClient();
-  const { tokens } = await oauthClient.getToken(code);
-  await saveTokens(tokens);
-  await syncAvailability();
+  try {
+    const oauthClient = createOAuthClient();
+    const { tokens } = await oauthClient.getToken(code);
+    await saveTokens(tokens);
+  } catch (err) {
+    console.error("[oauth] Token exchange failed:", err);
+    res.redirect(`${config.frontendUrl}#schedule?auth_error=1`);
+    return;
+  }
+
+  // Sync is best-effort — tokens are already saved, user can refresh manually
+  try {
+    await syncAvailability();
+  } catch (err) {
+    console.error("[oauth] Initial calendar sync failed:", err);
+  }
+
   res.redirect(`${config.frontendUrl}#schedule?connected=1`);
 });
 
@@ -173,16 +217,20 @@ app.get("/api/availability", async (_req, res) => {
   }
 });
 
+let projectsCache: { data: { projects: unknown[] }; expiresAt: number } | null = null;
+const PROJECTS_CACHE_TTL = 5 * 60_000;
+
 app.get("/api/projects", async (_req, res) => {
+  const cached = projectsCache;
+  if (cached && Date.now() < cached.expiresAt) {
+    res.json(cached.data);
+    return;
+  }
+
   try {
     const response = await fetch(
       `https://api.github.com/users/${githubUsername}/repos?sort=pushed&direction=desc&per_page=100`,
-      {
-        headers: {
-          Accept: "application/vnd.github+json",
-          "User-Agent": "narendra-portfolio",
-        },
-      },
+      { headers: buildGithubHeaders() },
     );
 
     if (!response.ok) {
@@ -237,10 +285,102 @@ app.get("/api/projects", async (_req, res) => {
         pushedAt: repo.latestCommitAt,
       }));
 
-    res.json({ projects });
+    const data = { projects };
+    projectsCache = { data, expiresAt: Date.now() + PROJECTS_CACHE_TTL };
+    res.json(data);
   } catch (error) {
     res.status(500).json({
       error: error instanceof Error ? error.message : "Unable to load GitHub projects",
+    });
+  }
+});
+
+app.get("/api/workspace", async (_req: express.Request, res: express.Response) => {
+  const cachedWs = workspaceCache;
+  if (cachedWs && Date.now() < cachedWs.expiresAt) {
+    res.json(cachedWs.data);
+    return;
+  }
+
+  try {
+    const reposResponse = await fetch(
+      `https://api.github.com/users/${githubUsername}/repos?sort=pushed&direction=desc&per_page=20`,
+      { headers: buildGithubHeaders() },
+    );
+
+    if (!reposResponse.ok) {
+      throw new Error(`GitHub API request failed with ${reposResponse.status}`);
+    }
+
+    const repos = (await reposResponse.json()) as Array<{
+      name: string;
+      description: string | null;
+      html_url: string;
+      language: string | null;
+      topics?: string[];
+      pushed_at: string;
+      default_branch: string;
+      fork: boolean;
+      archived: boolean;
+    }>;
+
+    const activeRepo = repos.find((r) => !r.fork && !r.archived);
+    if (!activeRepo) {
+      throw new Error("No active repositories found");
+    }
+
+    const commitsResponse = await fetch(
+      `https://api.github.com/repos/${githubUsername}/${activeRepo.name}/commits?per_page=8`,
+      { headers: buildGithubHeaders() },
+    );
+
+    if (!commitsResponse.ok) {
+      throw new Error(`GitHub commits API request failed with ${commitsResponse.status}`);
+    }
+
+    const rawCommits = (await commitsResponse.json()) as Array<{
+      sha: string;
+      html_url: string;
+      commit: {
+        message: string;
+        author?: { name?: string; date?: string };
+        committer?: { name?: string; date?: string };
+      };
+    }>;
+
+    const commits: WorkspaceCommit[] = rawCommits.map((c) => ({
+      sha: c.sha.slice(0, 7),
+      message: c.commit.message,
+      author:
+        c.commit.author?.name ??
+        c.commit.committer?.name ??
+        "Unknown",
+      date:
+        c.commit.author?.date ??
+        c.commit.committer?.date ??
+        activeRepo.pushed_at,
+      url: c.html_url,
+    }));
+
+    const data: WorkspacePayload = {
+      repo: {
+        name: activeRepo.name,
+        description: activeRepo.description,
+        html_url: activeRepo.html_url,
+        language: activeRepo.language,
+        topics: activeRepo.topics ?? [],
+        pushed_at: activeRepo.pushed_at,
+        default_branch: activeRepo.default_branch,
+      },
+      commits,
+      lastRefreshed: new Date().toISOString(),
+    };
+
+    workspaceCache = { data, expiresAt: Date.now() + WORKSPACE_CACHE_TTL };
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unable to load workspace data",
     });
   }
 });

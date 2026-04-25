@@ -555,6 +555,239 @@ a {
   border-color: #d4d4d4;
 }
 
+/* ── Workspace ─────────────────────────────────────────────────────────── */
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.45; transform: scale(0.75); }
+}
+
+.workspace-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  flex-shrink: 0;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.workspace-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-top: 28px;
+}
+
+.workspace-repo-header {
+  padding: 28px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border: 1px solid var(--line);
+}
+
+.workspace-repo-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.workspace-lang {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  color: var(--accent-soft);
+}
+
+.workspace-pushed {
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.workspace-repo-name {
+  margin: 0 0 10px;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.workspace-repo-desc {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.75;
+  max-width: 60ch;
+}
+
+.workspace-tags {
+  margin-top: 16px;
+}
+
+.workspace-focus {
+  padding: 28px;
+  border-radius: 24px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255,255,255,0.02);
+}
+
+.workspace-commit-main {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workspace-commit-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.workspace-sha {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--line);
+  color: var(--accent-soft);
+  letter-spacing: 0.04em;
+}
+
+.workspace-commit-time {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.workspace-commit-msg {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.workspace-commit-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.workspace-dot-sep {
+  opacity: 0.4;
+}
+
+.workspace-commit-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.3);
+  text-underline-offset: 0.2em;
+  font-weight: 600;
+  transition: text-decoration-color 180ms ease;
+}
+
+.workspace-commit-link:hover {
+  text-decoration-color: rgba(255,255,255,0.8);
+}
+
+.workspace-commits {
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+}
+
+.commit-log {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commit-log-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  transition: background 160ms ease;
+  cursor: pointer;
+}
+
+.commit-log-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.commit-log-sha {
+  font-size: 0.72rem;
+}
+
+.commit-log-msg {
+  font-size: 0.92rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  transition: color 160ms ease;
+}
+
+.commit-log-item:hover .commit-log-msg {
+  color: var(--text);
+}
+
+.commit-log-time {
+  font-size: 0.82rem;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.workspace-footer {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.workspace-refresh-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-left: auto;
+}
+
+.workspace-refresh-label {
+  white-space: nowrap;
+}
+
+.workspace-refresh-btn {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+
+.workspace-refresh-btn:hover {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.4);
+}
+
 @media (max-width: 1100px) {
   .hero-grid,
   .page-grid,
@@ -619,5 +852,26 @@ a {
 
   .live-grid {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-repo-meta {
+    flex-wrap: wrap;
+  }
+
+  .workspace-pushed {
+    margin-left: 0;
+  }
+
+  .workspace-refresh-row {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .commit-log-item {
+    grid-template-columns: auto 1fr;
+  }
+
+  .commit-log-time {
+    display: none;
   }
 }
